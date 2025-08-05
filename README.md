@@ -2,7 +2,7 @@
 
 This project involves building a reinforcement learning agent that can solve Sokoban puzzles using Proximal Policy Optimization (PPO). The goal is to explore and evaluate improvements such as memory integration (e.g., LSTM) and hierarchical reinforcement learning (HRL) to help the agent handle sparse rewards and complex decision-making in puzzle-solving environments.
 
-[This project is part of a graduation thesis at the Islamic University of Gaza]
+[This work is part of a graduation project at the Islamic University of Gaza]
 
 
 ## Project Goals
