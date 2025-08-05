@@ -2,8 +2,7 @@
 
 This project involves building a reinforcement learning agent that can solve Sokoban puzzles using Proximal Policy Optimization (PPO). The goal is to explore and evaluate improvements such as memory integration (e.g., LSTM) and hierarchical reinforcement learning (HRL) to help the agent handle sparse rewards and complex decision-making in puzzle-solving environments.
 
-[This work is part of a graduation project at the Islamic University of Gaza]
-
+This work is part of a graduation project submitted to the Islamic University of Gaza.
 
 ## Project Goals
 - Implement a PPO agent that learns to play Sokoban
@@ -14,7 +13,7 @@ This project involves building a reinforcement learning agent that can solve Sok
 
 ## Environment Setup
 ### Requirements
-[these will be installed in a venv folder that we didnt upload according to the bad network in gaza (you'll have to download them manually)]
+Note: These libraries will be installed in a virtual environment (venv), which is excluded from the repository due to network constraints. Please install them manually using the provided requirements.
 
 - Python 3.10 or higher
 - PyTorch
