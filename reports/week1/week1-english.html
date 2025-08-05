@@ -1,0 +1,46 @@
+
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Week 1 Report</title>
+<style>
+  body { direction: ltr; font-family: Arial, sans-serif; line-height: 1.6; margin: 40px; }
+  h1, h2 { color: #333; }
+</style>
+</head>
+<body>
+
+<h1>Week 1 Report</h1>
+
+<p><strong>Date:</strong> 2025-08-02</p>
+
+<h2>What Got Done</h2>
+<ul>
+  <li>Installed Python, Git, and VS Code to get everything ready.</li>
+  <li>Set up a virtual environment and added all the needed libraries like torch, stable-baselines3, gym, and gym-sokoban.</li>
+  <li>Had some issues with the libraries not working together (especially gym and numpy), but got them fixed by using older versions and patching missing files.</li>
+  <li>Ran a Sokoban game and saw it working with random moves on the screen.</li>
+</ul>
+
+<h2>Problems Faced</h2>
+<ul>
+  <li>PowerShell didn’t let scripts run at first — had to change security settings.</li>
+  <li>gym had missing rendering code, so the game couldn’t show at first.</li>
+  <li>pyglet was too new and didn’t work with the old rendering — had to downgrade it.</li>
+  <li>numpy version was too new for gym — had to roll it back to an older one that works.</li>
+</ul>
+
+<h2>What I Figured Out</h2>
+<ul>
+  <li>When you're working with older tools like gym, it's super important to match the right versions of each library.</li>
+  <li>Sometimes the official packages are missing stuff (like rendering), but you can fix it if you know what to look for.</li>
+  <li>You don’t always need to switch tools — you can just adjust things to make them work.</li>
+</ul>
+
+<h2>Next Steps</h2>
+<ul>
+  <li>Move on to Week 2 and start building and training the PPO agent for Sokoban.</li>
+</ul>
+
+</body>
+</html>
