@@ -1,0 +1,14 @@
+# training artifacts
+checkpoints/
+ppo_sokoban_tensorboard/
+reports/
+*.zip
+*.pt
+*.pth
+*.onnx
+*.mp4
+*.gif
+
+# local env + caches
+venv/
+__pycache__/
