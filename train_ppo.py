@@ -6,7 +6,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecFrameStack
 import torch
 
-# Paths (optional but tidy)
+# Paths
 TENSORBOARD_DIR = "./ppo_sokoban_tensorboard/"
 
 print("SB3 will use:", "cuda" if torch.cuda.is_available() else "cpu")
