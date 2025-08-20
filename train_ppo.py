@@ -17,6 +17,8 @@ from stable_baselines3.common.vec_env import (
 )
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.logger import configure
+
 
 # -------------------
 # config / paths
@@ -358,19 +360,21 @@ class StagnationResetWrapper(gym.Wrapper):
 # -------------------
 # tiny cnn
 # -------------------
-class TinyGridCNN(BaseFeaturesExtractor):
-    def __init__(self, observation_space: spaces.Box, features_dim: int = 128):
+class BalancedGridCNN(BaseFeaturesExtractor):
+    def __init__(self, observation_space: spaces.Box, features_dim: int = 512):
         super().__init__(observation_space, features_dim)
         c, h, w = observation_space.shape
         self.cnn = nn.Sequential(
-            nn.Conv2d(c, 16, kernel_size=3, stride=1, padding=1), nn.ReLU(),
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1), nn.ReLU(),
+            nn.Conv2d(c, 32, kernel_size=3, stride=1, padding=1), nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1), nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1), nn.ReLU(),
             nn.AdaptiveAvgPool2d((1, 1)),
         )
         self.linear = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(32, features_dim), nn.ReLU(),
+            nn.Linear(128, features_dim), nn.ReLU(),
         )
+
     def forward(self, obs: torch.Tensor) -> torch.Tensor:
         return self.linear(self.cnn(obs))
 
@@ -690,7 +694,7 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--total-steps", type=int, default=500_000)
     p.add_argument("--resume", action="store_true")
-    p.add_argument("--n-envs", type=int, default=8)  # used when not recording
+    p.add_argument("--n-envs", type=int, default=4)  # used when not recording
     p.add_argument("--save-every", type=int, default=50_000)
     p.add_argument("--model-path", type=str, default=DEFAULT_MODEL_PATH)
     p.add_argument("--norm-path",  type=str, default=DEFAULT_NORM_PATH)
@@ -708,7 +712,7 @@ def main():
                    help="Show live OpenCV window while recording training.")
 
     # evaluation video options
-    p.add_argument("--eval-every", type=int, default=5000,
+    p.add_argument("--eval-every", type=int, default=50000,
                    help="Save an evaluation video every N training steps (set <=0 to disable).")
     p.add_argument("--eval-frames", type=int, default=300,
                    help="Max frames per eval video.")
@@ -767,7 +771,7 @@ def main():
     else:
         train_env = build_train_env(n_envs, seed, vec_cls, load_norm_from=None, n_stack=n_stack)
         policy_kwargs = dict(
-            features_extractor_class=TinyGridCNN,
+            features_extractor_class=BalancedGridCNN,
             features_extractor_kwargs=dict(features_dim=128),
         )
         model = PPO(
@@ -776,7 +780,7 @@ def main():
             policy_kwargs=policy_kwargs,
             n_steps=256, batch_size=1024, learning_rate=3e-4,
             n_epochs=4, gamma=0.99, gae_lambda=0.95,
-            ent_coef=0.01, clip_range=0.1, vf_coef=0.5, max_grad_norm=0.5,
+            ent_coef=0.02, clip_range=0.2, vf_coef=0.5, max_grad_norm=0.5,
         )
         reset_flag = True
         print("[train] starting from scratch")
@@ -807,6 +811,13 @@ def main():
                 verbose=1
             )
         )
+
+    # force TensorBoard to log to a specific folder 
+    log_dir = os.path.join(args.tb_dir, "PPO_15")
+    os.makedirs(log_dir, exist_ok=True)
+    new_logger = configure(log_dir, ["stdout", "tensorboard", "csv"])
+    model.set_logger(new_logger)
+
 
     model.learn(total_timesteps=args.total_steps, callback=callbacks, reset_num_timesteps=reset_flag)
 
