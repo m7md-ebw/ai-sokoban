@@ -18,6 +18,101 @@ from stable_baselines3.common.vec_env import (
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, BaseCallback
 from stable_baselines3.common.logger import configure
+from sb3_contrib import RecurrentPPO
+
+
+from stable_baselines3.common.callbacks import BaseCallback
+import os, numpy as np, imageio
+
+class RecurrentEvalVideoCallback(BaseCallback):
+    """
+    Evaluate a RecurrentPPO agent and save video/GIF every `every_steps` timesteps.
+    Handles LSTM hidden states and masks correctly.
+    """
+    def __init__(self, eval_env, out_dir="videos", every_steps=50_000, video_len=300, deterministic=True, verbose=0):
+        super().__init__(verbose)
+        self.eval_env = eval_env
+        self.out_dir = out_dir
+        self.every_steps = int(every_steps)
+        self.video_len = int(video_len)
+        self.deterministic = bool(deterministic)
+        self._last = 0
+        os.makedirs(self.out_dir, exist_ok=True)
+
+    @staticmethod
+    def _unwrap_base(env):
+        base = env.envs[0] if hasattr(env, "envs") else env
+        while hasattr(base, "env"):
+            base = base.env
+        return base
+
+    def _safe_render(self, base):
+        try:
+            rgb = base.render(mode="rgb_array")
+            return np.asarray(rgb, dtype=np.uint8) if rgb is not None else None
+        except Exception:
+            return None
+
+    def _on_step(self) -> bool:
+        if (self.model.num_timesteps - self._last) < self.every_steps:
+            return True
+        self._last = self.model.num_timesteps
+
+        obs = self.eval_env.reset()
+        base = self._unwrap_base(self.eval_env)
+
+        # RecurrentPPO: hidden states and masks
+        lstm_states = None
+        masks = np.ones((self.eval_env.num_envs,), dtype=np.float32)
+
+        frames, ep_reward, steps = [], 0.0, 0
+
+        f0 = self._safe_render(base)
+        if f0 is not None: frames.append(f0)
+
+        done = False
+        while steps < self.video_len:
+            action, lstm_states = self.model.predict(
+                obs, state=lstm_states, mask=masks, deterministic=self.deterministic
+            )
+            obs, reward, done_arr, _ = self.eval_env.step(action)
+            ep_reward += float(reward[0])
+            steps += 1
+
+            rgb = self._safe_render(base)
+            if rgb is not None:
+                frames.append(rgb)
+
+            # Update masks for LSTM: 0 if done, 1 otherwise
+            masks = np.array([0.0 if d else 1.0 for d in done_arr], dtype=np.float32)
+
+            if bool(done_arr[0]):
+                obs = self.eval_env.reset()
+                lstm_states = None  # reset LSTM hidden state
+
+        stem = f"eval_ts_{self._last}_R{ep_reward:.1f}"
+        mp4 = os.path.join(self.out_dir, f"{stem}.mp4")
+
+        if len(frames) < 2:
+            gif = os.path.join(self.out_dir, f"{stem}.gif")
+            imageio.mimsave(gif, frames if frames else [np.zeros((112,112,3),dtype=np.uint8)], fps=8)
+            if self.verbose:
+                print(f"[video] saved {gif}")
+            return True
+
+        try:
+            with imageio.get_writer(mp4, fps=8) as writer:
+                for f in frames:
+                    writer.append_data(f)
+            if self.verbose:
+                print(f"[video] saved {mp4} ({len(frames)} frames, return={ep_reward:.1f})")
+        except Exception as e:
+            # fallback to GIF
+            gif = os.path.join(self.out_dir, f"{stem}.gif")
+            imageio.mimsave(gif, frames, fps=8)
+            if self.verbose:
+                print(f"[video] MP4 failed ({e}), saved GIF {gif}")
+        return True
 
 
 class BackForthPenaltyWrapper(_gym.Wrapper):
@@ -347,7 +442,7 @@ def main():
     p.add_argument("--room-w", type=int, default=8)
     p.add_argument("--num-boxes", type=int, default=2)
     p.add_argument("--max-steps", type=int, default=160)
-    p.add_argument("--step-penalty", type=float, default=0.003)
+    p.add_argument("--step-penalty", type=float, default=0.001)
     # one-off recording
     p.add_argument("--record-now", dest="record_now", action="store_true")
     p.add_argument("--record-frames", type=int, default=150)
@@ -382,11 +477,11 @@ def main():
             print("[record-now] no checkpoint found; using fresh model for a sample video")
 
         # Record one clip and exit
-        video_cb = PeriodicEvalVideoCallback(
+        video_cb = RecurrentEvalVideoCallback(
             eval_env=eval_env,
             out_dir="videos",
-            every_steps=1,                    # trigger immediately
-            video_len=args.record_frames,
+            every_steps=20_000,   # record every 20k timesteps
+            video_len=300,         # number of frames per clip
             deterministic=True,
             verbose=1,
         )
@@ -415,8 +510,10 @@ def main():
         print(f"[resume] loaded {args.model_path}")
         reset_flag = False
     else:
-        model = PPO(
-            "CnnPolicy",
+        from sb3_contrib import RecurrentPPO
+
+        model = RecurrentPPO(
+            "CnnLstmPolicy",
             train_env,
             device=device,
             verbose=1,
@@ -432,6 +529,7 @@ def main():
             max_grad_norm=0.5,
             tensorboard_log=args.tb_dir,
         )
+
         reset_flag = True
 
     # Fail fast if shapes diverge

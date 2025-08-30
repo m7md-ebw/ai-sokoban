@@ -20,6 +20,19 @@ from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback,
 from stable_baselines3.common.logger import configure
 
 
+def _get_grid(env):
+    try:
+        return env.unwrapped.room_state  # int grid with codes: 0..6
+    except Exception:
+        return None
+
+def _walls_mask(grid: np.ndarray) -> np.ndarray:
+    return (grid == 1)
+
+def _boxes_free_mask(grid: np.ndarray) -> np.ndarray:
+    return (grid == 4)  # exclude boxes on goal (5)
+
+
 class BackForthPenaltyWrapper(_gym.Wrapper):
     """
     Penalize short-period oscillations like:
@@ -289,6 +302,7 @@ def make_base_env(dim_room=(7, 7), num_boxes=1, max_steps=120, step_penalty=0.0,
     env = UndoMovePenaltyWrapper(env, penalty=0.03)
     env = BackForthPenaltyWrapper(env, penalty=0.03, max_history=8)
 
+
     # SAFE: print wrapper only on the single base env (before vectorization)
     if print_tag is not None:
         env = PrintObsShapeOnce(env, tag=print_tag)
@@ -328,12 +342,12 @@ def assert_obs_compat(model, env, where):
 def main():
     p = argparse.ArgumentParser()
     # timesteps & vec config
-    p.add_argument("--total-timesteps", type=int, default=1_000_000)
+    p.add_argument("--total-timesteps", type=int, default=300_000)
     p.add_argument("--n-envs", type=int, default=8)
     p.add_argument("--n-steps", type=int, default=1024)
     p.add_argument("--n-stack", type=int, default=2)  # must match train & eval
     # PPO hyperparams
-    p.add_argument("--ent-coef", type=float, default=0.02)
+    p.add_argument("--ent-coef", type=float, default=0.005)
     p.add_argument("--lr", type=float, default=3e-4)
     # save/eval
     p.add_argument("--save-every", type=int, default=50_000)
@@ -343,14 +357,14 @@ def main():
     p.add_argument("--model-path", type=str, default="checkpoints/ppo.zip")
     p.add_argument("--resume", action="store_true")
     # env size/options (keep identical for train & eval)
-    p.add_argument("--room-h", type=int, default=8)
-    p.add_argument("--room-w", type=int, default=8)
-    p.add_argument("--num-boxes", type=int, default=2)
-    p.add_argument("--max-steps", type=int, default=160)
-    p.add_argument("--step-penalty", type=float, default=0.003)
+    p.add_argument("--room-h", type=int, default=7)
+    p.add_argument("--room-w", type=int, default=7)
+    p.add_argument("--num-boxes", type=int, default=1)
+    p.add_argument("--max-steps", type=int, default=120)
+    p.add_argument("--step-penalty", type=float, default=0.0)
     # one-off recording
     p.add_argument("--record-now", dest="record_now", action="store_true")
-    p.add_argument("--record-frames", type=int, default=150)
+    p.add_argument("--record-frames", type=int, default=300)
     args = p.parse_args()
 
     dim_room = (args.room_h, args.room_w)

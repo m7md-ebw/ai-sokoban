@@ -6,10 +6,6 @@ import torch
 import gym
 import gym_sokoban  # pip install gym-sokoban
 import imageio
-import gym as _gym
-import numpy as _np
-
-from collections import deque
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.vec_env import (
@@ -18,102 +14,6 @@ from stable_baselines3.common.vec_env import (
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, CheckpointCallback, BaseCallback
 from stable_baselines3.common.logger import configure
-
-
-class BackForthPenaltyWrapper(_gym.Wrapper):
-    """
-    Penalize short-period oscillations like:
-      - 2-tile ping-pong: A,B,A,B,...
-      - 3-tile bounce:   A,B, C, B, A, ...
-    Uses the player position from gym_sokoban's internal grid.
-    No termination, just a small penalty when detected.
-    """
-    def __init__(self, env, penalty=0.02, max_history=6):
-        super().__init__(env)
-        self.penalty = float(penalty)
-        self.hist = deque(maxlen=int(max_history))
-
-    def _player_pos(self):
-        g = None
-        try:
-            g = self.env.unwrapped.room_state
-        except Exception:
-            return None
-        if g is None:
-            return None
-        import numpy as np
-        ys, xs = np.where((g == 3) | (g == 6))
-        return (int(ys[0]), int(xs[0])) if len(ys) else None
-
-    def reset(self, **kwargs):
-        obs = self.env.reset(**kwargs)
-        self.hist.clear()
-        p = self._player_pos()
-        if p is not None:
-            self.hist.append(p)
-        return obs
-
-    def step(self, action):
-        obs, reward, done, info = self.env.step(action)
-        p = self._player_pos()
-        if p is not None:
-            self.hist.append(p)
-
-            # --- Detect 2-tile ping-pong: ... A,B,A,B
-            if len(self.hist) >= 4:
-                a, b, c, d = self.hist[-4], self.hist[-3], self.hist[-2], self.hist[-1]
-                pingpong2 = (a == c) and (b == d) and (a != b)
-
-                # --- Detect 3-tile bounce: ... A,B,C,B,A
-                bounce3 = False
-                if len(self.hist) >= 5:
-                    a2, b2, c2, d2, e2 = self.hist[-5], self.hist[-4], self.hist[-3], self.hist[-2], self.hist[-1]
-                    bounce3 = (a2 == e2) and (b2 == d2) and (a2 != b2 != c2)
-
-                if pingpong2 or bounce3:
-                    reward -= self.penalty
-                    info = dict(info)
-                    info["backforth_penalty"] = info.get("backforth_penalty", 0.0) + self.penalty
-
-        return obs, reward, done, info
-
-
-class NoOpMovePenaltyWrapper(_gym.Wrapper):
-    """-penalty when the player position doesn't change (wall bump / blocked push)."""
-    def __init__(self, env, penalty=0.02):
-        super().__init__(env); self.penalty=float(penalty)
-    def _pos(self):
-        try:
-            g=self.env.unwrapped.room_state
-            ys,xs=_np.where((g==3)|(g==6))
-            return (int(ys[0]), int(xs[0])) if len(ys) else None
-        except Exception: return None
-    def step(self, a):
-        p0=self._pos()
-        obs, r, done, info = self.env.step(a)
-        p1=self._pos()
-        if p0 is not None and p1==p0:
-            r -= self.penalty
-            info = dict(info); info["noop_penalty"]=self.penalty
-        return obs, r, done, info
-
-
-class UndoMovePenaltyWrapper(_gym.Wrapper):
-    """-penalty for immediate backtracks (L↔R or U↔D). No termination."""
-    # Sokoban actions are usually 0:push_up,1:push_down,2:push_left,3:push_right,4:up,5:down,6:left,7:right
-    # If your env uses 0..3 move-only, set the inverse map accordingly.
-    INV = {4:5, 5:4, 6:7, 7:6, 0:1, 1:0, 2:3, 3:2}
-    def __init__(self, env, penalty=0.01):
-        super().__init__(env); self.penalty=float(penalty); self.prev=None
-    def reset(self, **kw): self.prev=None; return self.env.reset(**kw)
-    def step(self, a):
-        obs, r, done, info = self.env.step(a)
-        if self.prev is not None and a == self.INV.get(self.prev, None):
-            r -= self.penalty
-            info = dict(info); info["undo_penalty"]=self.penalty
-        self.prev = a
-        return obs, r, done, info
-
 
 class PeriodicEvalVideoCallback(BaseCallback):
     """
@@ -285,10 +185,6 @@ def make_base_env(dim_room=(7, 7), num_boxes=1, max_steps=120, step_penalty=0.0,
             def reward(self, r): return r - self.p
         env = StepPenalty(env, step_penalty)
 
-    env = NoOpMovePenaltyWrapper(env, penalty=0.05)     # tweak value via CLI later if you like    
-    env = UndoMovePenaltyWrapper(env, penalty=0.03)
-    env = BackForthPenaltyWrapper(env, penalty=0.03, max_history=8)
-
     # SAFE: print wrapper only on the single base env (before vectorization)
     if print_tag is not None:
         env = PrintObsShapeOnce(env, tag=print_tag)
@@ -328,12 +224,12 @@ def assert_obs_compat(model, env, where):
 def main():
     p = argparse.ArgumentParser()
     # timesteps & vec config
-    p.add_argument("--total-timesteps", type=int, default=1_000_000)
+    p.add_argument("--total-timesteps", type=int, default=300_000)
     p.add_argument("--n-envs", type=int, default=8)
     p.add_argument("--n-steps", type=int, default=1024)
     p.add_argument("--n-stack", type=int, default=2)  # must match train & eval
     # PPO hyperparams
-    p.add_argument("--ent-coef", type=float, default=0.02)
+    p.add_argument("--ent-coef", type=float, default=0.005)
     p.add_argument("--lr", type=float, default=3e-4)
     # save/eval
     p.add_argument("--save-every", type=int, default=50_000)
@@ -343,14 +239,14 @@ def main():
     p.add_argument("--model-path", type=str, default="checkpoints/ppo.zip")
     p.add_argument("--resume", action="store_true")
     # env size/options (keep identical for train & eval)
-    p.add_argument("--room-h", type=int, default=8)
-    p.add_argument("--room-w", type=int, default=8)
-    p.add_argument("--num-boxes", type=int, default=2)
-    p.add_argument("--max-steps", type=int, default=160)
-    p.add_argument("--step-penalty", type=float, default=0.003)
+    p.add_argument("--room-h", type=int, default=7)
+    p.add_argument("--room-w", type=int, default=7)
+    p.add_argument("--num-boxes", type=int, default=1)
+    p.add_argument("--max-steps", type=int, default=120)
+    p.add_argument("--step-penalty", type=float, default=0.0)
     # one-off recording
     p.add_argument("--record-now", dest="record_now", action="store_true")
-    p.add_argument("--record-frames", type=int, default=150)
+    p.add_argument("--record-frames", type=int, default=300)
     args = p.parse_args()
 
     dim_room = (args.room_h, args.room_w)
