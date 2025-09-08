@@ -1,10 +1,9 @@
-# train_ppo.py
 import os
 import argparse
 import numpy as np
 import torch
 import gym
-import gym_sokoban  # pip install gym-sokoban
+import gym_sokoban 
 import imageio
 import gym as _gym
 import numpy as _np
@@ -61,7 +60,6 @@ class RecurrentEvalVideoCallback(BaseCallback):
         obs = self.eval_env.reset()
         base = self._unwrap_base(self.eval_env)
 
-        # RecurrentPPO: hidden states and masks
         lstm_states = None
         masks = np.ones((self.eval_env.num_envs,), dtype=np.float32)
 
@@ -83,12 +81,11 @@ class RecurrentEvalVideoCallback(BaseCallback):
             if rgb is not None:
                 frames.append(rgb)
 
-            # Update masks for LSTM: 0 if done, 1 otherwise
             masks = np.array([0.0 if d else 1.0 for d in done_arr], dtype=np.float32)
 
             if bool(done_arr[0]):
                 obs = self.eval_env.reset()
-                lstm_states = None  # reset LSTM hidden state
+                lstm_states = None  
 
         stem = f"eval_ts_{self._last}_R{ep_reward:.1f}"
         mp4 = os.path.join(self.out_dir, f"{stem}.mp4")
@@ -107,7 +104,6 @@ class RecurrentEvalVideoCallback(BaseCallback):
             if self.verbose:
                 print(f"[video] saved {mp4} ({len(frames)} frames, return={ep_reward:.1f})")
         except Exception as e:
-            # fallback to GIF
             gif = os.path.join(self.out_dir, f"{stem}.gif")
             imageio.mimsave(gif, frames, fps=8)
             if self.verbose:
@@ -154,12 +150,10 @@ class BackForthPenaltyWrapper(_gym.Wrapper):
         if p is not None:
             self.hist.append(p)
 
-            # --- Detect 2-tile ping-pong: ... A,B,A,B
             if len(self.hist) >= 4:
                 a, b, c, d = self.hist[-4], self.hist[-3], self.hist[-2], self.hist[-1]
                 pingpong2 = (a == c) and (b == d) and (a != b)
 
-                # --- Detect 3-tile bounce: ... A,B,C,B,A
                 bounce3 = False
                 if len(self.hist) >= 5:
                     a2, b2, c2, d2, e2 = self.hist[-5], self.hist[-4], self.hist[-3], self.hist[-2], self.hist[-1]
@@ -195,8 +189,7 @@ class NoOpMovePenaltyWrapper(_gym.Wrapper):
 
 class UndoMovePenaltyWrapper(_gym.Wrapper):
     """-penalty for immediate backtracks (L↔R or U↔D). No termination."""
-    # Sokoban actions are usually 0:push_up,1:push_down,2:push_left,3:push_right,4:up,5:down,6:left,7:right
-    # If your env uses 0..3 move-only, set the inverse map accordingly.
+
     INV = {4:5, 5:4, 6:7, 7:6, 0:1, 1:0, 2:3, 3:2}
     def __init__(self, env, penalty=0.01):
         super().__init__(env); self.penalty=float(penalty); self.prev=None
@@ -228,7 +221,6 @@ class PeriodicEvalVideoCallback(BaseCallback):
 
     @staticmethod
     def _unwrap_base(env):
-        # eval_env is a DummyVecEnv(1); unwrap to the base gym env for rgb_array render
         raw = env.envs[0] if hasattr(env, "envs") else env
         base = raw
         while hasattr(base, "env"):
@@ -251,7 +243,6 @@ class PeriodicEvalVideoCallback(BaseCallback):
         base = self._unwrap_base(self.eval_env)
 
         frames, ep_reward, steps = [], 0.0, 0
-        # initial frame
         f0 = self._safe_render(base)
         if f0 is not None:
             frames.append(f0)
@@ -275,7 +266,6 @@ class PeriodicEvalVideoCallback(BaseCallback):
         mp4 = os.path.join(self.out_dir, f"{stem}.mp4")
 
         if len(frames) < 2:
-            # fallback to GIF
             gif = os.path.join(self.out_dir, f"{stem}.gif")
             try:
                 imageio.mimsave(gif, frames if frames else [np.zeros((112,112,3),dtype=np.uint8)], fps=8)
@@ -293,7 +283,6 @@ class PeriodicEvalVideoCallback(BaseCallback):
             if self.verbose:
                 print(f"[video] saved {mp4} ({len(frames)} frames, return={ep_reward:.1f})")
         except Exception as e:
-            # MP4 failed → GIF fallback
             gif = os.path.join(self.out_dir, f"{stem}.gif")
             imageio.mimsave(gif, frames, fps=8)
             if self.verbose:
@@ -301,7 +290,7 @@ class PeriodicEvalVideoCallback(BaseCallback):
         return True
     
 # -------------------
-# Print base env obs shape once (safe only on single env)
+# Print base env obs shape once 
 # -------------------
 class PrintObsShapeOnce(gym.Wrapper):
     def __init__(self, env, tag="env"):
@@ -319,13 +308,12 @@ class PrintObsShapeOnce(gym.Wrapper):
 
 
 # -------------------
-# Robust Sokoban constructor (handles different gym_sokoban versions)
+# Robust Sokoban constructor 
 # -------------------
 def _construct_sokoban(dim_room, num_boxes, max_steps):
     """
     Try several ways to build a Sokoban env so it works across versions/forks.
     """
-    # Try importing the class directly and calling with different signatures
     SokobanEnv = None
     try:
         from gym_sokoban.envs import SokobanEnv as _SokobanEnv
@@ -338,7 +326,7 @@ def _construct_sokoban(dim_room, num_boxes, max_steps):
             dict(dim_room=dim_room, num_boxes=num_boxes, max_steps=max_steps),
             dict(dim_room=dim_room, num_boxes=num_boxes, max_steps_per_episode=max_steps),
             dict(dim_room=dim_room, num_boxes=num_boxes),
-            dict(),  # defaults only
+            dict(),
         ):
             try:
                 return SokobanEnv(**kwargs)
@@ -347,14 +335,12 @@ def _construct_sokoban(dim_room, num_boxes, max_steps):
             except Exception:
                 continue
 
-    # Fall back to registry without kwargs (some builds ignore them)
     for env_id in ("Sokoban-v0", "Sokoban-v1", "Sokoban-v2"):
         try:
             return gym.make(env_id)
         except Exception:
             pass
 
-    # Some forks register different IDs
     for env_id in ("SokobanPush-v0", "SokobanSmall-v0"):
         try:
             return gym.make(env_id)
@@ -380,11 +366,10 @@ def make_base_env(dim_room=(7, 7), num_boxes=1, max_steps=120, step_penalty=0.0,
             def reward(self, r): return r - self.p
         env = StepPenalty(env, step_penalty)
 
-    env = NoOpMovePenaltyWrapper(env, penalty=0.05)     # tweak value via CLI later if you like    
+    env = NoOpMovePenaltyWrapper(env, penalty=0.05)       
     env = UndoMovePenaltyWrapper(env, penalty=0.03)
     env = BackForthPenaltyWrapper(env, penalty=0.03, max_history=8)
 
-    # SAFE: print wrapper only on the single base env (before vectorization)
     if print_tag is not None:
         env = PrintObsShapeOnce(env, tag=print_tag)
     return env
@@ -406,7 +391,7 @@ def build_vec_env(n_envs, n_stack, vec_cls, seed=None, norm_reward=False,
     # Keep rewards unnormalized while debugging shape issues
     venv = VecNormalize(venv, norm_obs=False, norm_reward=norm_reward)
     venv.training = (tag == "train")
-    # DO NOT wrap VecEnv with a Gym.Wrapper here (that caused your crash)
+    # DO NOT wrap VecEnv with a Gym.Wrapper here
     return venv
 
 
@@ -422,28 +407,23 @@ def assert_obs_compat(model, env, where):
 
 def main():
     p = argparse.ArgumentParser()
-    # timesteps & vec config
     p.add_argument("--total-timesteps", type=int, default=1_000_000)
     p.add_argument("--n-envs", type=int, default=8)
     p.add_argument("--n-steps", type=int, default=1024)
-    p.add_argument("--n-stack", type=int, default=2)  # must match train & eval
-    # PPO hyperparams
+    p.add_argument("--n-stack", type=int, default=2)
     p.add_argument("--ent-coef", type=float, default=0.02)
     p.add_argument("--lr", type=float, default=3e-4)
-    # save/eval
     p.add_argument("--save-every", type=int, default=50_000)
     p.add_argument("--eval-every", type=int, default=50_000)
     p.add_argument("--eval-episodes", type=int, default=5)
     p.add_argument("--tb-dir", type=str, default="runs/ppo_tb")
     p.add_argument("--model-path", type=str, default="checkpoints/ppo.zip")
     p.add_argument("--resume", action="store_true")
-    # env size/options (keep identical for train & eval)
     p.add_argument("--room-h", type=int, default=8)
     p.add_argument("--room-w", type=int, default=8)
     p.add_argument("--num-boxes", type=int, default=2)
     p.add_argument("--max-steps", type=int, default=160)
     p.add_argument("--step-penalty", type=float, default=0.001)
-    # one-off recording
     p.add_argument("--record-now", dest="record_now", action="store_true")
     p.add_argument("--record-frames", type=int, default=150)
     args = p.parse_args()
@@ -454,7 +434,6 @@ def main():
 
     # ---------- QUICK RECORD MODE (no training buffers!) ----------
     if args.record_now:
-        # Build ONLY a 1-env eval pipeline
         eval_env = build_vec_env(
             n_envs=1,
             n_stack=args.n_stack,
@@ -468,7 +447,6 @@ def main():
             tag="eval",
         )
 
-        # Load model for inference (no learn(), no big buffers)
         if os.path.exists(args.model_path):
             model = PPO.load(args.model_path, env=eval_env, device=device)
             print(f"[record-now] loaded {args.model_path}")
@@ -476,7 +454,6 @@ def main():
             model = PPO("CnnPolicy", eval_env, device=device, n_steps=8, batch_size=8)
             print("[record-now] no checkpoint found; using fresh model for a sample video")
 
-        # Record one clip and exit
         video_cb = RecurrentEvalVideoCallback(
             eval_env=eval_env,
             out_dir="videos",
@@ -485,7 +462,7 @@ def main():
             deterministic=True,
             verbose=1,
         )
-        video_cb.model = model              # attach model so callback can predict()
+        video_cb.model = model             
         video_cb._on_step()
         return
     # ---------- END QUICK RECORD MODE ----------
