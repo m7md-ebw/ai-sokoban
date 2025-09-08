@@ -1,10 +1,9 @@
-# train_ppo.py
 import os
 import argparse
 import numpy as np
 import torch
 import gym
-import gym_sokoban  # pip install gym-sokoban
+import gym_sokoban 
 import imageio
 import gym as _gym
 import numpy as _np
@@ -100,8 +99,6 @@ class NoOpMovePenaltyWrapper(_gym.Wrapper):
 
 class UndoMovePenaltyWrapper(_gym.Wrapper):
     """-penalty for immediate backtracks (L↔R or U↔D). No termination."""
-    # Sokoban actions are usually 0:push_up,1:push_down,2:push_left,3:push_right,4:up,5:down,6:left,7:right
-    # If your env uses 0..3 move-only, set the inverse map accordingly.
     INV = {4:5, 5:4, 6:7, 7:6, 0:1, 1:0, 2:3, 3:2}
     def __init__(self, env, penalty=0.01):
         super().__init__(env); self.penalty=float(penalty); self.prev=None
@@ -289,7 +286,6 @@ def make_base_env(dim_room=(7, 7), num_boxes=1, max_steps=120, step_penalty=0.0,
     env = UndoMovePenaltyWrapper(env, penalty=0.03)
     env = BackForthPenaltyWrapper(env, penalty=0.03, max_history=8)
 
-    # SAFE: print wrapper only on the single base env (before vectorization)
     if print_tag is not None:
         env = PrintObsShapeOnce(env, tag=print_tag)
     return env
@@ -308,10 +304,8 @@ def build_vec_env(n_envs, n_stack, vec_cls, seed=None, norm_reward=False,
     venv = VecTransposeImage(venv)
     # IMPORTANT: same n_stack for BOTH train & eval
     venv = VecFrameStack(venv, n_stack=n_stack)
-    # Keep rewards unnormalized while debugging shape issues
     venv = VecNormalize(venv, norm_obs=False, norm_reward=norm_reward)
     venv.training = (tag == "train")
-    # DO NOT wrap VecEnv with a Gym.Wrapper here (that caused your crash)
     return venv
 
 
