@@ -1,0 +1,10 @@
+{
+  "algo": "dqn",
+  "env": "Sokoban-small-v0",
+  "cwd": "D:\\Sokoban_RL\\graduation-project",
+  "argv": [
+    "sokoban_train.py",
+    "--algo",
+    "dqn"
+  ]
+}
