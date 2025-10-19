@@ -13,7 +13,7 @@ This work is part of a graduation project submitted to the Islamic University of
 
 ## Environment Setup
 ### Requirements
-Note: These libraries will be installed in a virtual environment (venv), which is excluded from the repository due to network constraints. Please install them manually using the provided requirements.
+These libraries need to be installed in a virtual environment (venv)
 
 - Python 3.10 or higher
 - PyTorch
@@ -39,5 +39,6 @@ Note: These libraries will be installed in a virtual environment (venv), which i
 
 5) TensorBoard:
    tensorboard --logdir YourPath
+
 
 
