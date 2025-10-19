@@ -20,6 +20,7 @@ Note: These libraries will be installed in a virtual environment (venv), which i
 - Stable-Baselines3
 - Gym
 - Gym-Sokoban
+IMPORTANT NOTE : some scripts might not work with "Gym", so uninstall it and install "Gymnasium" instead to avoid conflict between them.
 
 ## Quick Run Notes
 ---------------
@@ -38,3 +39,4 @@ Note: These libraries will be installed in a virtual environment (venv), which i
 
 5) TensorBoard:
    tensorboard --logdir YourPath
+
