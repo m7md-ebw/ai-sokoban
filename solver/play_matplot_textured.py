@@ -18,7 +18,6 @@ except Exception:
 from .sokoban_solver import parse_level, solve_sokoban, State, DIRS
 from .level_loader import load_boxoban_levels
 
-# ---------- asset discovery (supports .../envs/sokoban_assets and .../envs/surface) ----------
 
 def find_gym_sokoban_assets_dir() -> Optional[str]:
     try:
@@ -40,7 +39,6 @@ def find_gym_sokoban_assets_dir() -> Optional[str]:
         pass
     return None
 
-# Your install uses the "surface" names; include compat aliases too.
 SPRITE_CANDIDATES = {
     "floor":       ["floor.png", "SokobanFloor.png"],
     "wall":        ["wall.png", "SokobanWall.png"],
@@ -59,7 +57,7 @@ def load_sprite(assets_dir: str, names: List[str], tile: int) -> Image.Image:
             try:
                 img = Image.open(path).convert("RGBA")
                 if tile and img.size != (tile, tile):
-                    img = img.resize((tile, tile), Image.NEAREST)  # preserve pixel-art crispness
+                    img = img.resize((tile, tile), Image.NEAREST)  
                 return img
             except Exception as e:
                 last_err = e
@@ -106,7 +104,7 @@ def step(state: State, mv: str) -> State:
     di, dj = DIRS[mv.upper()]
     ni, nj = state.player[0] + di, state.player[1] + dj
     boxes = set(state.boxes)
-    if mv.isupper():  # push
+    if mv.isupper(): 
         bi, bj = ni + di, nj + dj
         boxes.remove((ni, nj))
         boxes.add((bi, bj))
@@ -134,7 +132,6 @@ class Viewer:
         self.show_grid = show_grid
         self.show_hud = show_hud
 
-        # Slightly taller control band to avoid overlaps
         self.fig = plt.figure(figsize=(9.5, 10.8))
         gs = self.fig.add_gridspec(13, 1)
         self.ax = self.fig.add_subplot(gs[:10, 0])
@@ -186,7 +183,6 @@ class Viewer:
             self.im = self.ax.imshow(frm, extent=[0, self.level.width*self.tile, self.level.height*self.tile, 0])
         self.ax.set_axis_off()
 
-        # rebuild grid
         if hasattr(self, "grid_lines"):
             for ln in self.grid_lines: ln.remove()
         self.grid_lines = []
@@ -197,7 +193,6 @@ class Viewer:
             ln = self.ax.axhline(y*self.tile, lw=0.5, color="w", alpha=0.35, visible=self.show_grid)
             self.grid_lines.append(ln)
 
-        # HUD
         if hasattr(self, "hud"):
             self.hud.remove()
         self.hud = self.ax.text(
@@ -213,12 +208,10 @@ class Viewer:
     # ----- controls -----
 
     def _build_controls(self):
-        # helper: place axes inside the controls band (normalized coords)
         def A(x, y, w, h):
             l = self.ctrl.get_position()
             return self.fig.add_axes([l.x0 + x*l.width, l.y0 + y*l.height, w*l.width, h*l.height])
 
-        # Row 1 — compact main controls
         self.ax_prev     = A(0.01, 0.35, 0.07, 0.55); self.btn_prev    = Button(self.ax_prev, "Prev")
         self.ax_play     = A(0.09, 0.35, 0.10, 0.55); self.btn_play    = Button(self.ax_play, "Play/Pause")
         self.ax_next     = A(0.20, 0.35, 0.07, 0.55); self.btn_next    = Button(self.ax_next, "Next")
@@ -226,38 +219,31 @@ class Viewer:
         self.ax_save_gif = A(0.37, 0.35, 0.09, 0.55); self.btn_gif     = Button(self.ax_save_gif, "Save GIF")
         self.ax_save_mp4 = A(0.47, 0.35, 0.09, 0.55); self.btn_mp4     = Button(self.ax_save_mp4, "Save MP4")
 
-        # FPS slider — label/value BELOW the slider
         self.ax_fps = A(0.60, 0.42, 0.18, 0.42)
-        self.slider = Slider(self.ax_fps, "", 1, 30, valinit=self.fps, valstep=1)  # empty label up top
+        self.slider = Slider(self.ax_fps, "", 1, 30, valinit=self.fps, valstep=1)  
 
-        # put "FPS" centered *below* the slider
         self.slider.label.set_text("FPS")
-        self.slider.label.set_position((0.35, -0.55))          # x in [0..1] of slider-axes
+        self.slider.label.set_position((0.35, -0.55))         
         self.slider.label.set_horizontalalignment("center")
         self.slider.label.set_fontsize(10)
-        # put current value *next to* the label, also below
-        self.slider.valtext.set_position((0.65, -0.55))        # right of "FPS"
+        self.slider.valtext.set_position((0.65, -0.55))       
         self.slider.valtext.set_horizontalalignment("center")
         self.slider.valtext.set_fontsize(10)
         self.slider.on_changed(self._on_speed)
 
-        # Checkboxes — a bit lower & narrower so they don't cover the slider label/value
         self.ax_chk = A(0.80, 0.12, 0.17, 0.76)
         self.check = CheckButtons(self.ax_chk, ["Grid", "Goals", "HUD"],
                                 [self.show_grid, self.show_goals, self.show_hud])
         self.check.on_clicked(self._on_check)
 
-        # Row 2 — bring back File…; remove "Pack" label; widen the gap before Level
         self.ax_file_btn = A(0.01, 0.05, 0.08, 0.22); self.btn_file = Button(self.ax_file_btn, "File…")
 
-        # pack textbox (no label) — slightly narrower so it cannot touch "Level"
         self.ax_file_txt = A(0.10, 0.05, 0.31, 0.22)
         self.txt_file = TextBox(self.ax_file_txt, "", initial="", color=".95", hovercolor=".9")
         self.txt_file.text_disp.set_color("black")
         try: self.txt_file.cursor.set_visible(False)
         except Exception: pass
 
-        # extra gap before Level textbox so the label never overlaps the pack field
         self.ax_level_txt = A(0.43, 0.05, 0.10, 0.22)
         self.txt_level = TextBox(self.ax_level_txt, "Level", initial="0")
 
@@ -412,16 +398,14 @@ class Viewer:
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         out = f"sokoban_replay_{ts}_lvl{self.level_index}.mp4"
         frames = self._render_all_frames()
-        # 1) Try imageio-ffmpeg
         try:
-            import imageio.v3 as iio  # pip install imageio imageio-ffmpeg
+            import imageio.v3 as iio  
             arr = [np.asarray(f) for f in frames]
             iio.imwrite(out, arr, fps=max(1, int(self.fps)))
             print(f"Saved MP4 -> {out} (imageio-ffmpeg)")
             return
         except Exception as e:
             print("imageio-ffmpeg not available or failed:", e)
-        # 2) Fallback to Matplotlib FFMpegWriter (requires ffmpeg on PATH)
         try:
             from matplotlib.animation import FFMpegWriter
             writer = FFMpegWriter(fps=max(1, int(self.fps)))
@@ -478,10 +462,7 @@ def main():
 
     assets_dir = args.assets or find_gym_sokoban_assets_dir()
     if not assets_dir:
-        raise RuntimeError(
-            "Could not locate gym_sokoban assets. "
-            "Install gym-sokoban or pass --assets <path/to/sprites folder>."
-        )
+        raise RuntimeError("Could not locate assets.")
 
     viewer = Viewer(level_pack_path=level_path, level_index=args.idx, method=args.method,
                     tile=args.tile, fps=args.fps, assets_dir=assets_dir)
@@ -489,3 +470,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
